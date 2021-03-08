@@ -26,6 +26,7 @@ protected:
 	void MoveBoid(float DeltaTime);
 	void Steer();
 	void RotateBoid(float DeltaTime);
+	float GetDistanceToBorder() const;
 	
 public:	
 	// Called every frame

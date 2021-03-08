@@ -29,34 +29,29 @@ void ABoid::BeginPlay()
 void ABoid::InitBoid()
 {
 	// Set random rotation
-	FRotator Rotator = UKismetMathLibrary::RandomRotator();
-	this->SetActorRotation(Rotator, ETeleportType::None);
-	
+	this->SetActorRotation(UKismetMathLibrary::RandomRotator(), ETeleportType::None);
 	ForwardVector = this->GetActorForwardVector();
 }
 
 void ABoid::MoveBoid(float DeltaTime)
 {
-	FVector CurrentPos = this->GetActorLocation();
-	FVector ForwardDir = this->GetActorForwardVector();
-	FVector NewPos = CurrentPos + ForwardDir * MoveSpeed * DeltaTime;
-	this->SetActorLocation(NewPos);
+	const FVector CurrentPos = this->GetActorLocation();
+	const FVector ForwardDir = this->GetActorForwardVector();
+	this->SetActorLocation(CurrentPos + ForwardDir * MoveSpeed * DeltaTime);
 }
 
 void ABoid::Steer()
 {
 	// If close to limits, return to center
-	FVector CurrentPos = this->GetActorLocation();
-	float CurrentPosX = FMath::Abs(CurrentPos.X);
-	float CurrentPosY = FMath::Abs(CurrentPos.Y);
-	float CurrentPosZ = FMath::Abs(CurrentPos.Z);
-	if (CurrentPosX > MaxCenterDistance || CurrentPosY > MaxCenterDistance || CurrentPosZ > MaxCenterDistance)
+	const FVector CurrentPos = this->GetActorLocation();
+	const float DistanceToBorder = GetDistanceToBorder();
+	if (DistanceToBorder > MaxCenterDistance)
 	{
 		ForwardVector = -CurrentPos;
 		return;
 	}
 
-	FVector MyLocation = this->GetActorLocation();
+	const FVector MyLocation = this->GetActorLocation();
 	
 	// Get current game mode
 	AGameModeBase* BaseGameMode = UGameplayStatics::GetGameMode(GetWorld());
@@ -75,12 +70,13 @@ void ABoid::Steer()
 	// Iterate over all boids to detect neighbours
 	for (int i = 0; i < BoidsArray.Num(); ++i)
 	{
-		ABoid* OtherBoid = BoidsArray[i];
+		const ABoid* OtherBoid = BoidsArray[i];
 		if (OtherBoid == this || OtherBoid == nullptr)
 			continue;
 
 		FVector OtherBoidLocation = OtherBoid->GetActorLocation();
-		if (UKismetMathLibrary::Vector_Distance(MyLocation, OtherBoidLocation) > DetectDistance)
+		const float BoidsDistance = UKismetMathLibrary::Vector_Distance(MyLocation, OtherBoidLocation);
+		if (BoidsDistance > DetectDistance)
 			continue;
 
 		Neighbours++;
@@ -92,7 +88,7 @@ void ABoid::Steer()
 		NeighboursForwardSum += OtherBoid->GetActorForwardVector();
 		
 		// Separation
-		if (UKismetMathLibrary::Vector_Distance(MyLocation, OtherBoidLocation) < SeparationDistance)
+		if (BoidsDistance < SeparationDistance)
 		{
 			NeighboursToSeparate++;
 			
@@ -123,8 +119,8 @@ void ABoid::Steer()
 
 		if (CurrentGameMode->GetSeparationEnabled())
 		{
-			FVector SeparationDir = NeighboursSeparationDir;
-			FVector RandomDir = UKismetMathLibrary::RandomUnitVector();
+			const FVector SeparationDir = NeighboursSeparationDir;
+			const FVector RandomDir = UKismetMathLibrary::RandomUnitVector();
 			NewForwardVector += 2.f * SeparationDir + RandomDir * .35f;
 		}
 
@@ -139,10 +135,14 @@ void ABoid::Steer()
 
 void ABoid::RotateBoid(float DeltaTime)
 {
-	FRotator NewRotator = UKismetMathLibrary::RLerp(this->GetActorRotation(), ForwardVector.Rotation(), 5.f * DeltaTime, true);
-	
-	// Rotate to look to new vector
+	const FRotator NewRotator = UKismetMathLibrary::RLerp(this->GetActorRotation(), ForwardVector.Rotation(), DeltaTime, true);
 	this->SetActorRotation(NewRotator);
+}
+
+float ABoid::GetDistanceToBorder() const
+{
+	const FVector CurrentPos = this->GetActorLocation();
+	return FMath::Max3(FMath::Abs(CurrentPos.X), FMath::Abs(CurrentPos.Y), FMath::Abs(CurrentPos.Z));
 }
 
 // Called every frame
